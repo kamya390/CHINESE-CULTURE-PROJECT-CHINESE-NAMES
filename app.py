@@ -49,3 +49,7 @@ def generate():
 @app.route("/")
 def home():
     return "API is running! Send a POST request to /generate to use the tool."
+
+# Add this to the very bottom:
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
