@@ -6,7 +6,8 @@ import os
 app = Flask(__name__)
 CORS(app, origins="*")
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# 1. Get a free key from https://console.groq.com/
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 @app.route("/generate", methods=["POST", "OPTIONS"])
 def generate():
@@ -19,18 +20,20 @@ def generate():
     if not name:
         return jsonify({"error": "Please provide a name."}), 400
 
-    if not OPENAI_API_KEY:
-        return jsonify({"error": "API key not configured."}), 500
+    if not GROQ_API_KEY:
+        return jsonify({"error": "Groq API key not configured."}), 500
 
     try:
+        # 2. Changed the URL to Groq's endpoint
         response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
+            "https://api.groq.com/openai/v1/chat/completions",
             headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Authorization": f"Bearer {GROQ_API_KEY}",
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gpt-4o-mini",
+                # 3. Changed the model to Llama 3 (Free on Groq)
+                "model": "llama-3.3-70b-versatile",
                 "messages": [
                     {
                         "role": "user",
@@ -47,13 +50,16 @@ def generate():
     except requests.exceptions.Timeout:
         return jsonify({"error": "Request timed out."}), 504
     except Exception as e:
+        # Better debugging: print the error to your terminal
+        print(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/")
 def home():
-    return "API is running! Send a POST request to /generate to use the tool."
+    return "API is running! Send a POST request to /generate to use the Groq tool."
 
 
 if __name__ == "__main__":
+    # Standard Flask port is 5000; keeping 10000 as per your script
     app.run(host="0.0.0.0", port=10000)
