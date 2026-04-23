@@ -6,8 +6,7 @@ import os
 app = Flask(__name__)
 CORS(app, origins="*")
 
-# 1. Update your Environment Variable in Render to GEMINI_API_KEY
-# Get your key from https://aistudio.google.com/
+# This will look for GEMINI_API_KEY in your Render Environment Variables
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 @app.route("/generate", methods=["POST", "OPTIONS"])
@@ -22,46 +21,58 @@ def generate():
         return jsonify({"error": "Please provide a name."}), 400
 
     if not GEMINI_API_KEY:
-        return jsonify({"error": "Gemini API key not configured."}), 500
+        return jsonify({"error": "Gemini API key not configured in environment variables."}), 500
 
     try:
-        # 2. Updated to the Gemini REST endpoint
-        # Using gemini-1.5-flash for the best free-tier performance
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # Using the v1 stable endpoint and gemini-1.5-flash
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         
+        payload = {
+            "contents": [{
+                "parts": [{
+                    "text": f"Generate a creative and culturally accurate Chinese name for the English name '{name}'. "
+                           f"Return the response in this format:\n"
+                           f"1. Chinese Characters\n"
+                           f"2. Pinyin\n"
+                           f"3. A one-sentence explanation of the meaning."
+                }]
+            }]
+        }
+
         response = requests.post(
             url,
-            headers={
-                "Content-Type": "application/json"
-            },
-            json={
-                "contents": [{
-                    "parts": [{
-                        "text": f"Generate a Chinese name for '{name}'. Return:\n1. Chinese characters\n2. Pinyin\n3. Meaning in 1 sentence"
-                    }]
-                }]
-            },
+            headers={"Content-Type": "application/json"},
+            json=payload,
             timeout=30
         )
-        response.raise_for_status()
         
-        # 3. Gemini's response structure is deeper: candidates -> content -> parts -> text
+        # Check if Google returned an error (like an invalid key or 404)
+        if response.status_code != 200:
+            return jsonify({
+                "error": "Google API Error",
+                "details": response.text
+            }), response.status_code
+
         json_res = response.json()
+        
+        # Extracting the text from Gemini's nested JSON structure
         result = json_res["candidates"][0]["content"]["parts"][0]["text"]
         
         return jsonify({"result": result})
 
     except requests.exceptions.Timeout:
-        return jsonify({"error": "Request timed out."}), 504
+        return jsonify({"error": "The request to the AI timed out."}), 504
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Server Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/")
 def home():
-    return "API is running! Send a POST request to /generate to use the Gemini tool."
+    return "Chinese Name Generator API is Live! Send POST requests to /generate."
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    # Render uses the PORT environment variable, defaulting to 10000
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
